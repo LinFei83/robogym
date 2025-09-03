@@ -1,7 +1,7 @@
 <mujoco model="rubik-v1.50">
 	<asset>
-		<!-- 简化纹理定义，移除网格布局 -->
-		<texture name='rubik' file="rubik/rubik.png" type="2d"/>
+		<!-- 简化纹理定义，移除网格布局，使用正确的相对路径 -->
+		<texture name='rubik' file="../textures/rubik/rubik.png" type="2d"/>
 		<material name="MatRubik" texture="rubik" specular="1" shininess=".3" reflectance="0"/>
 	</asset>
 
