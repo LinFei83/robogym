@@ -39,56 +39,63 @@ logger = logging.getLogger(__name__)
 
 @attr.s(auto_attribs=True)
 class FacePerpendicularEnvParameters(DactylCubeEnvParameters):
-    """ Parameters of the Dactyl Face Perpendicular env - possible to change for each episode"""
+    """ Dactyl Face Perpendicular 环境的参数 - 可以在每个 episode 中更改 """
 
     pass
 
 
 @attr.s(auto_attribs=True)
 class FacePerpendicularEnvConstants(DactylCubeEnvConstants):
-    """ Parameters of the Dactyl Perpendicular env - set once and for all """
+    """ Dactyl Perpendicular 环境的常量 - 只设置一次 """
 
-    # Threshold for success conditions
+    # 成功条件的阈值
     success_threshold: dict = {"cube_quat": 0.4, "cube_face_angle": 0.2}
 
-    # What kind of goal generation we want for the environment
+    # 我们希望环境使用哪种目标生成方式
     goal_generation: str = "face_curr"
 
     #####################
-    # Curriculum settings
+    # 课程学习设置
+    #####################
 
-    # Which directions do we rotate the faces
+    # 我们朝哪个方向旋转面
     goal_directions: List[str] = ["cw", "ccw"]
 
-    # Are faces always rotated to round angles
+    # 面是否总是旋转到整数角度（90度的倍数）
     round_target_face: bool = True
 
-    # Probability of cube reorient vs face rotation
+    # 方块重新定向与面旋转的概率
     p_face_flip: float = 0.25
 
 
 class FacePerpendicularSimulation(CubeSimulationInterface):
     """
-    Simulation of a shadow hand manipulating a face cube
+    影手操作面状方块的模拟。
+    “面状方块”是指只有顶面和底面可以绕Z轴旋转的方块。
     """
 
     @classmethod
     def _build_mujoco_cube_xml(cls, xml, cube_xml_path):
+        """
+        构建并修改魔方的MuJoCo XML定义。
+        这个方法会移除除了Z轴旋转之外的所有自由度，
+        从而创建一个只能旋转顶面和底面的方块。
+        """
         xml.append(
             MujocoXML.parse(cube_xml_path)
             .add_name_prefix("cube:")
             .set_named_objects_attr("cube:middle", tag="body", pos=[1.0, 0.87, 0.2])
-            # Leave +/- z driver joints
+            # 只保留Z轴的驱动关节，用于旋转顶面和底面
             .remove_objects_by_name(names="cube:cubelet:driver:neg_x", tag="joint")
             .remove_objects_by_name(names="cube:cubelet:driver:pos_x", tag="joint")
             .remove_objects_by_name(names="cube:cubelet:driver:neg_y", tag="joint")
             .remove_objects_by_name(names="cube:cubelet:driver:pos_y", tag="joint")
-            # Remove x/y cubelet hinge joints
+            # 移除X/Y轴的小方块铰链关节，禁止面在X/Y轴方向翻转
             .remove_objects_by_prefix(prefix="cube:cubelet:rotx:", tag="joint")
             .remove_objects_by_prefix(prefix="cube:cubelet:roty:", tag="joint")
-            # Delete springs for now
+            # 暂时删除弹簧关节
             .remove_objects_by_prefix(prefix="cube:cubelet:spring:", tag="joint")
-            # Remove remaining cubelet joints we're not interested in
+            # 移除我们不感兴趣的剩余小方块关节
             .remove_objects_by_name(
                 names=[
                     "cube:cubelet:rotz:neg_x_pos_y",
@@ -100,23 +107,23 @@ class FacePerpendicularSimulation(CubeSimulationInterface):
             )
         )
 
-        # Target
+        # 添加目标方块 (一个不可见的、用于可视化的方块)
         xml.append(
             MujocoXML.parse(cube_xml_path)
             .add_name_prefix("target:")
             .set_named_objects_attr("target:middle", tag="body", pos=[1.0, 0.87, 0.2])
-            # Disable collisions
+            # 禁用碰撞，使其不与场景中的任何物体发生物理交互
             .set_objects_attr(tag="geom", group="2", conaffinity="0", contype="0")
-            # Leave +/- z driver joints
+            # 同样，只保留Z轴的驱动关节
             .remove_objects_by_name(names="target:cubelet:driver:neg_x", tag="joint")
             .remove_objects_by_name(names="target:cubelet:driver:pos_x", tag="joint")
             .remove_objects_by_name(names="target:cubelet:driver:neg_y", tag="joint")
             .remove_objects_by_name(names="target:cubelet:driver:pos_y", tag="joint")
-            # Remove x/y cubelet hinge joints
+            # 移除X/Y轴的小方块铰链关节
             .remove_objects_by_prefix(prefix="target:cubelet:rotx:", tag="joint")
             .remove_objects_by_prefix(prefix="target:cubelet:roty:", tag="joint")
             .remove_objects_by_prefix(prefix="target:cubelet:spring:", tag="joint")
-            # Remove remaining cubelet joints we're not interested in
+            # 移除不感兴趣的剩余关节
             .remove_objects_by_name(
                 names=[
                     "target:cubelet:rotz:neg_x_pos_y",
@@ -239,17 +246,17 @@ class FacePerpendicularSimulation(CubeSimulationInterface):
         return self.get_qpos("{}_drivers".format(target))
 
     def rotate_target_face(self, side, angle):
-        """ Rotate given face of the target by given angle """
+        """ 将目标方块的给定面旋转指定角度 """
         qpos = self.get_face_angles("target")
         qpos[side] += angle
         self.set_face_angles("target", qpos)
 
     def clone_target_from_cube(self):
-        """ Clone target internal state from cube state """
+        """ 从实际方块状态克隆目标方块的内部状态 """
         self.set_face_angles("target", self.get_face_angles("cube"))
 
     def align_target_faces(self):
-        """ Align target orientation to straight orientation of the cube """
+        """ 将目标方块的朝向与方块的垂直朝向对齐 """
         self.set_face_angles(
             "target", rotation.round_to_straight_angles(self.get_face_angles("target"))
         )
@@ -263,11 +270,10 @@ class FacePerpendicularEnv(
     ]
 ):
     """
-    A dactyl Rubik's cube environment that aims to replicate dactyl face env using simpler
-    code
+    一个 dactyl 魔方环境，旨在使用更简单的代码复现 dactyl face 环境。
     """
 
-    # Target angle is two numbers: top face angle and bottom face angle
+    # 目标角度是两个数字：顶面角度和底面角度
     TARGET_ANGLE_SHAPE = 2
 
     FACE_GEOM_NAMES = ["cube:cubelet:pos_z", "cube:cubelet:neg_z"]
@@ -317,7 +323,7 @@ class FacePerpendicularEnv(
         constants: FacePerpendicularEnvConstants,
         mujoco_simulation: FacePerpendicularSimulation,
     ) -> GoalGenerator:
-        """ Construct a goal generation object """
+        """ 构建一个目标生成对象 """
         if constants.goal_generation == "face_curr":
             return FaceCurriculumGoal(
                 mujoco_simulation=mujoco_simulation,
@@ -392,21 +398,22 @@ class FacePerpendicularEnv(
             self.mujoco_simulation.step()
 
     ###############################################################################################
-    # External API - to establish communication with other parts of the system
+    # 外部API - 用于与系统的其他部分建立通信
     @property
     def cube_type(self):
-        """ Type of cube """
+        """ 方块类型 """
         return "face-perpendicular"
 
     @property
     def face_joint_names(self):
-        """ Used by some wrapper """
+        """ 供某些包装器使用 """
         return self.FACE_JOINT_NAMES
 
     ###############################################################################################
-    # Fully internal methods
+    # 完全内部的方法
     def _render_callback(self, _sim, _viewer):
-        """ Set a render callback """
+        """ 设置渲染回调 """
+        # 在渲染时，将目标方块（可视化）移动到预定位置并设置为目标姿态
         self.mujoco_simulation.set_qpos("target_position", np.array([0.15, 0, -0.03]))
         self.mujoco_simulation.set_qpos("target_rotation", self._goal["cube_quat"])
         self.mujoco_simulation.set_face_angles("target", self._goal["cube_face_angle"])

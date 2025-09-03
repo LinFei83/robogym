@@ -175,12 +175,12 @@ class ReachEnv(RobotEnv[ReachEnvParameters, ReachEnvConstants, ReachSimulation])
     def build_goal_generation(
         cls, constants, mujoco_simulation: ReachSimulation
     ) -> GoalGenerator:
-        """ Construct a goal generation object """
+        """ 构建一个目标生成对象 """
         goal_simulation = ReachSimulation.build(n_substeps=mujoco_simulation.n_substeps)
         sim = goal_simulation.mj_sim
 
-        # Make sure fingers are separated.
-        # For transfer, want to make sure post-noise locations are achievable.
+        # 确保手指是分开的。
+        # 为了迁移学习，需要确保添加噪声后的位置是可达的。
         sim.model.geom_margin[:] = sim.model.geom_margin + 0.002
 
         from robogym.envs.dactyl.goals.shadow_hand_reach_fingertip_pos import (
@@ -198,7 +198,8 @@ class ReachEnv(RobotEnv[ReachEnvParameters, ReachEnvConstants, ReachSimulation])
         return mujoco_simulation.shadow_hand
 
     def _render_callback(self, _sim, _viewer):
-        """ Set a render callback """
+        """ 设置渲染回调 """
+        # 在渲染时，将目标位置（可视化的小球）移动到目标点
         goal_fingertip_pos = self._goal["fingertip_pos"].reshape(-1, 3)
         for finger_idx, site in enumerate(FINGERTIP_SITE_NAMES):
             goal_pos = goal_fingertip_pos[finger_idx]
@@ -212,7 +213,8 @@ class ReachEnv(RobotEnv[ReachEnvParameters, ReachEnvConstants, ReachSimulation])
 
     def apply_wrappers(self, **wrapper_params):
         """
-        Apply wrappers to the environment.
+        为环境应用包装器。
+        包装器可以用来添加随机化、修改动作或观察空间等。
         """
         self.constants: ReachEnvConstants
 
@@ -236,7 +238,7 @@ class ReachEnv(RobotEnv[ReachEnvParameters, ReachEnvConstants, ReachSimulation])
         else:
             noise_levels = NO_NOISE_LEVELS
 
-        # must happen before angle observation wrapper
+        # 必须在角度观察包装器之前执行
         env = randomizations.RandomizeObservationWrapper(env, levels=noise_levels)
 
         if self.constants.randomize:
@@ -245,7 +247,7 @@ class ReachEnv(RobotEnv[ReachEnvParameters, ReachEnvConstants, ReachSimulation])
 
         env = util.SmoothActionWrapper(
             env
-        )  # this get's applied before noise is added (important)
+        )  # 这个包装器在添加噪声之前应用（很重要）
         env = util.RelativeGoalWrapper(env)
         env = util.UnifiedGoalObservationWrapper(env, goal_parts=["fingertip_pos"])
         env = util.ClipObservationWrapper(env)
@@ -255,7 +257,7 @@ class ReachEnv(RobotEnv[ReachEnvParameters, ReachEnvConstants, ReachSimulation])
             env, n_action_bins=self.constants.n_action_bins
         )
 
-        # Note: Recording wrapper is removed here to favor simplicity.
+        # 注意：为了简单起见，此处移除了记录包装器。
         return env
 
 

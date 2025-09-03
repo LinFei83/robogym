@@ -40,7 +40,7 @@ class LockedSimulationParameters(CubeSimulationParameters):
 
 @attr.s(auto_attribs=True)
 class LockedEnvParameters(DactylCubeEnvParameters):
-    """ Parameters of the Dactyl Locked env - possible to change for each episode. """
+    """ Dactyl Locked 环境的参数 - 可以在每个 episode 中更改。 """
 
     simulation_params: LockedSimulationParameters = build_nested_attr(
         LockedSimulationParameters
@@ -49,30 +49,31 @@ class LockedEnvParameters(DactylCubeEnvParameters):
 
 @attr.s(auto_attribs=True)
 class LockedEnvConstants(DactylCubeEnvConstants):
-    """ Parameters of the Dactyl Locked env - same for all episodes. """
+    """ Dactyl Locked 环境的常量 - 在所有 episode 中保持不变。 """
 
-    # Max number of steps before considering goal is unreachable.
+    # 在认为目标无法达到之前所经过的最大步数。
     max_steps_goal_unreachable: int = 10
 
-    # Threshold for success conditions
+    # 成功条件的阈值
     success_threshold: dict = {"cube_quat": 0.4}
 
-    # Goal generation.
+    # 目标生成。
     goal_generation: str = "state"
 
-    # If use vision base observations.
+    # 是否使用基于视觉的观察。
     vision_observations: bool = False
 
-    # If use vision base goal observation.
+    # 是否使用基于视觉的目标观察。
     vision_goal: bool = False
 
 
 class LockedSimulation(CubeSimulationInterface):
     """
-    Simulation of ShadowHand manipulating the locked cube.
+    影手操作锁定方块的模拟。
+    "锁定方块"是一个没有任何可移动部分的实心方块。
     """
 
-    # Perpendicular cube model
+    # 锁定方块模型
     CUBE_XML_PATH_PATTERN = "rubik/rubik_locked{suffix}.xml"
 
     @classmethod
@@ -85,13 +86,13 @@ class LockedSimulation(CubeSimulationInterface):
             .set_named_objects_attr("cube:middle", tag="geom", density=421.0)
         )
 
-        # Target cube
+        # 目标方块 (用于可视化)
         xml.append(
             MujocoXML.parse(cube_xml_path)
             .remove_objects_by_name("annotation:outer_bound")
             .add_name_prefix("target:")
             .set_named_objects_attr("target:middle", tag="body", pos=[1.0, 0.87, 0.2])
-            # Disable collisions
+            # 禁用碰撞
             .set_objects_attr(tag="geom", group="2", conaffinity="0", contype="0")
         )
 
@@ -125,8 +126,7 @@ class LockedSimulation(CubeSimulationInterface):
 
 class LockedEnv(CubeEnv[LockedEnvParameters, LockedEnvConstants, LockedSimulation]):
     """
-    Environment with the ShadowHand and a locked cube (i.e. no moving pieces, just a solid
-    block).
+    包含影手和锁定方块（即没有移动部件，只是一个实心块）的环境。
     """
 
     def _default_observation_map(self):
@@ -146,7 +146,7 @@ class LockedEnv(CubeEnv[LockedEnvParameters, LockedEnvConstants, LockedSimulatio
         }
 
         if self.constants.vision_observations:
-            # Add image observations for vision based policy rollout.
+            # 为基于视觉的策略部署添加图像观察。
             obs_map.update(
                 {
                     "vision": omv(
@@ -173,10 +173,10 @@ class LockedEnv(CubeEnv[LockedEnvParameters, LockedEnvConstants, LockedSimulatio
 
     @classmethod
     def build_goal_generation(cls, constants, mujoco_simulation) -> GoalGenerator:
-        """ Construct a goal generation object """
+        """ 构建一个目标生成对象 """
         assert (
             constants.goal_generation == "state"
-        ), "Only state based goal generation is supported"
+        ), "仅支持基于状态的目标生成"
         return LockedParallelGoal(mujoco_simulation)
 
     @classmethod
@@ -283,16 +283,17 @@ class LockedEnv(CubeEnv[LockedEnvParameters, LockedEnvConstants, LockedSimulatio
         return default_wrappers
 
     ###############################################################################################
-    # External API - to establish communication with  other parts of the system
+    # 外部API - 用于与系统的其他部分建立通信
     @property
     def cube_type(self):
-        """ Type of cube """
+        """ 方块类型 """
         return "locked"
 
     ###############################################################################################
-    # Fully internal methods
+    # 完全内部的方法
     def _render_callback(self, _sim, _viewer):
-        """ Set a render callback """
+        """ 设置渲染回调 """
+        # 在渲染时，将目标方块（可视化）移动到预定位置并设置为目标姿态
         self.mujoco_simulation.set_qpos("target_position", np.array([0.15, 0, -0.03]))
         self.mujoco_simulation.set_qpos("target_rotation", self._goal["cube_quat"])
 
