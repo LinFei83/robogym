@@ -1,0 +1,38 @@
+<mujoco model="rubik-v1.50">
+	<asset>
+		<!-- 简化纹理定义，移除网格布局 -->
+		<texture name='rubik' file="rubik/rubik.png" type="2d"/>
+		<material name="MatRubik" texture="rubik" specular="1" shininess=".3" reflectance="0"/>
+	</asset>
+
+	<!--
+		Isaac Sim 兼容版本:
+		1. 移除了纹理的 gridsize 和 gridlayout 属性
+		2. 将多个关节分解为嵌套的 body 结构以避免单个 body 包含过多关节
+		3. 保持原有的物理特性
+	-->
+
+	<worldbody>
+		<!-- 平移关节的嵌套结构 -->
+		<body name="cube_base" pos="0 0 0">
+			<joint name="cube_tx" type="slide" axis="1 0 0" limited="false"/>
+			<body name="cube_intermediate_x" pos="0 0 0">
+				<joint name="cube_ty" type="slide" axis="0 1 0" limited="false"/>
+				<body name="cube_intermediate_y" pos="0 0 0">
+					<joint name="cube_tz" type="slide" axis="0 0 1" limited="false"/>
+					<body name="middle" pos=".0285 .0285 .0285">
+						<joint name="cube_rot" type="ball" limited="false"/>
+						<geom name="middle" type="box" size=".0285 .0285 .0285" material="MatRubik" condim="4"/>
+						<site name="center" pos="0 0 0" rgba="1 0 0 1" size="0.01 0.01 0.01"></site>
+					</body>
+				</body>
+			</body>
+		</body>
+
+		<!-- 注释边界保持不变 -->
+		<body name="annotation:outer_bound" pos="0.0285 0.0285 0.0285">
+			<geom conaffinity="0" contype="0" mass="0" pos="0 0 0" rgba="0.417022 0.720324 0.000114 0.1" size="0.0285 0.0285 0.0285" type="box"></geom>
+		</body>
+	</worldbody>
+
+</mujoco>
